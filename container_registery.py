@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
+import base64
+import yaml
 
 app = Flask(__name__)
 
@@ -15,6 +17,25 @@ def create_secret(api_instance, namespace, secret_name, data):
         print(f"Secret '{secret_name}' created.")
     except ApiException as e:
         print(f"Exception when creating secret: {e}")
+
+# Function to create a ConfigMap
+def create_configmap(api_instance, namespace, config_name, data):
+    configmap = client.V1ConfigMap(
+        metadata=client.V1ObjectMeta(name=config_name),
+        data=data
+    )
+    try:
+        api_instance.create_namespaced_config_map(namespace=namespace, body=configmap)
+        print(f"ConfigMap '{config_name}' created.")
+    except ApiException as e:
+        print(f"Exception when creating ConfigMap: {e}")
+
+# Function to create a secret from a file
+def create_secret_from_file(api_instance, namespace, secret_name, secret_file):
+    with open(secret_file, 'r') as file:
+        secret_data = yaml.safe_load(file)['data']
+        decoded_data = {k: base64.b64decode(v).decode('utf-8') for k, v in secret_data.items()}
+        create_secret(api_instance, namespace, secret_name, decoded_data)
 
 # Function to create a service
 def create_service(api_instance, namespace, service_name, app_name, service_port):
@@ -37,7 +58,11 @@ def create_deployment(api_instance, namespace, app_name, image_address, image_ta
         name=app_name,
         image=f"{image_address}:{image_tag}",
         ports=[client.V1ContainerPort(container_port=80)],
-        env=[client.V1EnvVar(name=k, value=v) for k, v in envs.items()],
+        env=[
+            client.V1EnvVar(name='POSTGRES_DB', value_from=client.V1EnvVarSource(config_map_key_ref=client.V1ConfigMapKeySelector(name='postgres-config', key='POSTGRES_DB'))),
+            client.V1EnvVar(name='POSTGRES_USER', value_from=client.V1EnvVarSource(config_map_key_ref=client.V1ConfigMapKeySelector(name='postgres-config', key='POSTGRES_USER'))),
+            client.V1EnvVar(name='POSTGRES_PASSWORD', value_from=client.V1EnvVarSource(config_map_key_ref=client.V1ConfigMapKeySelector(name='postgres-config', key='POSTGRES_PASSWORD')))
+        ] + [client.V1EnvVar(name=k, value=v) for k, v in envs.items()],
         resources=client.V1ResourceRequirements(
             requests=resources,
             limits=resources
@@ -110,8 +135,17 @@ def create_app():
     apps_v1 = client.AppsV1Api()
     extensions_v1beta1 = client.ExtensionsV1beta1Api()
 
+    # Create ConfigMap for PostgreSQL (or other configurations as needed)
+    create_configmap(v1, namespace, "postgres-config", {
+        "POSTGRES_DB": "mydatabase",
+        "POSTGRES_USER": "myuser",
+        "POSTGRES_PASSWORD": "mypassword"
+    })
+
+    # Create Secret from file
     if secrets:
-        create_secret(v1, namespace, f"{app_name}-secret", secrets)
+        create_secret_from_file(v1, namespace, f"{app_name}-secret", "config/secrets.yaml")
+
     create_service(v1, namespace, f"{app_name}-service", app_name, service_port)
     create_deployment(apps_v1, namespace, app_name, image_address, image_tag, replicas, envs, resources, f"{app_name}-secret" if secrets else None)
 
@@ -199,7 +233,6 @@ def get_all_deployments_status():
 
     except ApiException as e:
         return jsonify({"error": str(e)}), 500
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

@@ -1,0 +1,38 @@
+replicaCount: 1
+
+image:
+  repository: your-docker-repo/monitoring-api
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 5001
+
+ingress:
+  enabled: false
+  annotations: {}
+  hosts:
+    - host: monitoring-api.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+
+resources: {}
+
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+
+serviceAccount:
+  create: true
+  name: monitoring-api-sa
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
