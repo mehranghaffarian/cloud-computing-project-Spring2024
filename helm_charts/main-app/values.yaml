@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: your-docker-repo/main-app
+  repository: main-app
   pullPolicy: IfNotPresent
   tag: "latest"
 

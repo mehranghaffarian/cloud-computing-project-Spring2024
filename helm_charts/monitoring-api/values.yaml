@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: your-docker-repo/monitoring-api
+  repository: monitoring-api
   pullPolicy: IfNotPresent
   tag: "latest"
 
