@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: main-app
+  repository: mehran8/main-app
   pullPolicy: IfNotPresent
   tag: "latest"
 

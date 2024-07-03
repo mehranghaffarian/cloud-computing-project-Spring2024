@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: monitoring-api
+  repository: mehran8/monitoring-api
   pullPolicy: IfNotPresent
   tag: "latest"
 
